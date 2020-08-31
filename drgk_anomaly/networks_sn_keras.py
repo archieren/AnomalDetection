@@ -11,7 +11,7 @@ from tensorflow.python.eager import context
 import math
 import tensorflow as tf
 from tensorflow.python.keras.utils import tf_utils
-import numpy as np
+
 KL = tf.keras.layers
 KM = tf.keras.models
 KB = tf.keras.backend
@@ -74,27 +74,26 @@ class SN_Conv2D(KL.Conv2D):
                  spectral_normalization=True,
                  name='SN_Conv2d',
                  **kwargs):
-        with tf.variable_scope(name):
-            super(SN_Conv2D, self).__init__(
-                filters=filters,
-                kernel_size=kernel_size,
-                strides=strides,
-                padding=padding,
-                data_format=data_format,
-                dilation_rate=dilation_rate,
-                activation=activation,
-                use_bias=use_bias,
-                kernel_initializer=kernel_initializer,
-                bias_initializer=bias_initializer,
-                kernel_regularizer=kernel_regularizer,
-                bias_regularizer=bias_regularizer,
-                activity_regularizer=activity_regularizer,
-                kernel_constraint=kernel_constraint,
-                bias_constraint=bias_constraint,
-                name=name,
-                **kwargs)
-            self.out_dim = filters
-            self.spectral_normalization = spectral_normalization
+        super(SN_Conv2D, self).__init__(
+            filters=filters,
+            kernel_size=kernel_size,
+            strides=strides,
+            padding=padding,
+            data_format=data_format,
+            dilation_rate=dilation_rate,
+            activation=activation,
+            use_bias=use_bias,
+            kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer,
+            activity_regularizer=activity_regularizer,
+            kernel_constraint=kernel_constraint,
+            bias_constraint=bias_constraint,
+            name=name,
+            **kwargs)
+        self.out_dim = filters
+        self.spectral_normalization = spectral_normalization
 
     def build(self, input_shape):
         self.u = self.add_weight(shape=tuple([1, self.out_dim]), initializer='random_uniform', name="sn_estimate_u", trainable=False)
@@ -108,7 +107,7 @@ class SN_Conv2D(KL.Conv2D):
             W_sn, u, _ = power_iteration(W_mat, self.u)
 
             def true_fn():
-                tf.assign(self.u, u)
+                self.u.assign(u)
                 pass
 
             def false_fn():
@@ -117,7 +116,6 @@ class SN_Conv2D(KL.Conv2D):
             training_value = tf_utils.constant_value(training)
             if training_value is not None:
                 tf_utils.smart_cond(training, true_fn, false_fn)
-                # tf.assign(self.u, u)
             return self.kernel/W_sn
         else:
             return self.kernel
@@ -176,27 +174,26 @@ class SN_Conv2DTranspose(KL.Conv2DTranspose):
                  name="SN_Conv2DTranspose",
                  spectral_normalization=True,
                  **kwargs):
-        with tf.variable_scope(name):
-            super(SN_Conv2DTranspose, self).__init__(
-                filters=filters,
-                kernel_size=kernel_size,
-                strides=strides,
-                padding=padding,
-                data_format=data_format,
-                dilation_rate=dilation_rate,
-                activation=activation,
-                use_bias=use_bias,
-                kernel_initializer=kernel_initializer,
-                bias_initializer=bias_initializer,
-                kernel_regularizer=kernel_regularizer,
-                bias_regularizer=bias_regularizer,
-                activity_regularizer=activity_regularizer,
-                kernel_constraint=kernel_constraint,
-                bias_constraint=bias_constraint,
-                **kwargs)
-            self.out_dim = filters
-            # self.u = KB.random_normal_variable([1, filters], 0, 1, dtype=self.dtype,name="sn_estimate")  # [1, out_channels]
-            self.spectral_normalization = spectral_normalization
+        super(SN_Conv2DTranspose, self).__init__(
+            filters=filters,
+            kernel_size=kernel_size,
+            strides=strides,
+            padding=padding,
+            data_format=data_format,
+            dilation_rate=dilation_rate,
+            activation=activation,
+            use_bias=use_bias,
+            kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer,
+            activity_regularizer=activity_regularizer,
+            kernel_constraint=kernel_constraint,
+            bias_constraint=bias_constraint,
+            **kwargs)
+        self.out_dim = filters
+        # self.u = KB.random_normal_variable([1, filters], 0, 1, dtype=self.dtype,name="sn_estimate")  # [1, out_channels]
+        self.spectral_normalization = spectral_normalization
 
     def build(self, input_shape):
         self.u = self.add_weight(shape=tuple([1, self.out_dim]), initializer='random_uniform', name="sn_estimate_u_f", trainable=False)
@@ -215,7 +212,7 @@ class SN_Conv2DTranspose(KL.Conv2DTranspose):
             sigma, u, _ = power_iteration(W_mat, self.u)
 
             def true_fn():
-                tf.assign(self.u, u)
+                self.u.assign(u)
                 pass
 
             def false_fn():
@@ -224,7 +221,6 @@ class SN_Conv2DTranspose(KL.Conv2DTranspose):
             training_value = tf_utils.constant_value(training)
             if training_value is not False:
                 tf_utils.smart_cond(training, true_fn, false_fn)
-                # tf.assign(self.u, u)
             return self.kernel / sigma
         else:
             return self.kernel
@@ -342,7 +338,7 @@ class SN_Attention(KL.Layer):
             sigma, u, _ = power_iteration(W_mat, s_u)
 
             def true_fn():
-                tf.assign(s_u, u)
+                s_u.assign(u)
                 pass
 
             def false_fn():
@@ -351,7 +347,6 @@ class SN_Attention(KL.Layer):
             training_value = tf_utils.constant_value(training)
             if training_value is not None:
                 tf_utils.smart_cond(training, true_fn, false_fn)
-                # tf.assign(s_u, u)
             return s_kernel / sigma
         else:
             return s_kernel
@@ -359,10 +354,6 @@ class SN_Attention(KL.Layer):
     def call(self, x, training=True):
         def hw_flatten(x):
             return KB.reshape(x, shape=[KB.shape(x)[0], KB.shape(x)[1]*KB.shape(x)[2], KB.shape(x)[-1]])
-
-        # tf.assign(self.kernel_f,self.compute_spectral_normal(s_kernel=self.kernel_f,s_u=self.u_f))
-        # tf.assign(self.kernel_g,self.compute_spectral_normal(s_kernel=self.kernel_g,s_u=self.u_g))
-        # tf.assign(self.kernel_h,self.compute_spectral_normal(s_kernel=self.kernel_h,s_u=self.u_h))
 
         f = KB.conv2d(x,
                       kernel=self.compute_spectral_normal(s_kernel=self.kernel_f, s_u=self.u_f, training=training),
@@ -458,11 +449,14 @@ class Attention(KL.Layer):
 
 class GANBuilder(object):
     """Implementation of DCGAN.
+    F,Z for Encoder
+    F, SN_F, Critic, SN_Critic for Discriminator
+
     """
 
     def __init__(self,
                  depth=64,
-                 z_dim=100,
+                 z_dim=100,      # 隐含向量的长度
                  image_size=64,  # 事实上这定义了输入、生成图像的规格！
                  num_outputs=3):
         """Constructor.
@@ -493,89 +487,81 @@ class GANBuilder(object):
             F->C ==> Discriminator
         """
         height = self._image_size
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
-            net = net_input
+        net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
+        net = net_input
 
-            num_layers = int(math.log(height, 2))-3
-            current_depth = self._depth
-            # 3->self._depth
-            net = KL.Conv2D(current_depth, (4, 4), strides=2, padding='same', name='conv2d_{}'.format('init'), use_bias=False)(net)
-            net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format('init'))(net)
-            # 还是加一些额外层
-            for i in range(EXTRA_LAYERS_NUM):
-                net = KL.Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
-                net = KL.BatchNormalization(name='extra_batchnorm_{}'.format(i))(net)
-                net = KL.LeakyReLU(0.2, name='extra_leakyrelu_{}'.format('init'))(net)
-            ##
-            for i in range(num_layers//2):
-                current_depth = current_depth*2
-                net = KL.Conv2D(current_depth, (4, 4), strides=2, padding='same', name='conv2d_{}'.format(i+1), use_bias=False)(net)
-                net = KL.BatchNormalization(name='batchnorm_{}'.format(i+1))(net)
+        num_layers = int(math.log(height, 2))-3
+        current_depth = self._depth
+        # 3->self._depth
+        net = KL.Conv2D(current_depth, (4, 4), strides=2, padding='same', name='conv2d_{}'.format('init'), use_bias=False)(net)
+        net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format('init'))(net)
+        # 还是加一些额外层
+        for i in range(EXTRA_LAYERS_NUM):
+            net = KL.Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
+            net = KL.BatchNormalization(name='extra_batchnorm_{}'.format(i))(net)
+            net = KL.LeakyReLU(0.2, name='extra_leakyrelu_{}'.format(i))(net)
+        ##
+        for i in range(num_layers//2):
+            current_depth = current_depth*2
+            net = KL.Conv2D(current_depth, (4, 4), strides=2, padding='same', name='conv2d_{}'.format(i+1), use_bias=False)(net)
+            net = KL.BatchNormalization(name='batchnorm_{}'.format(i+1))(net)
+            net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
+        # 中途加入一个Attention层!
+        net = Attention(current_depth, name='attention')(net)
+        # 中途加入一个Attention层!
+        for i in range(num_layers//2, num_layers):
+            current_depth = current_depth * 2
+            net = KL.Conv2D(current_depth, (4, 4), strides=2, padding='same', name='conv2d_{}'.format(i+1), use_bias=False)(net)
+            net = KL.BatchNormalization(name='batchnorm_{}'.format(i+1))(net)
+            if (i == num_layers - 1):
+                net = KL.LeakyReLU(0.2, name='features')(net)
+            else:
                 net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
-            # 中途加入一个Attention层!
-            net = Attention(current_depth, name='attention')(net)
-            # 中途加入一个Attention层!
-            for i in range(num_layers//2, num_layers):
-                current_depth = current_depth * 2
-                net = KL.Conv2D(current_depth, (4, 4), strides=2, padding='same', name='conv2d_{}'.format(i+1), use_bias=False)(net)
-                net = KL.BatchNormalization(name='batchnorm_{}'.format(i+1))(net)
-                if (i == num_layers - 1):
-                    net = KL.LeakyReLU(0.2, name='features')(net)
-                else:
-                    net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
-            #  令 isize = int(math.log(height, 2))
-            # 此时: BNx4x4x(depth*2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
+        #  令 isize = int(math.log(height, 2))
+        # 此时: BNx4x4x(depth*2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
+        model = KM.Model(inputs=net_input, outputs=net, name=name)
         # model.summary()
         return model
 
-    def SN_F(self, name='SN_F', with_BN=True):
+    def SN_F(self, name='SN_F'):
         """F network.The common structure of the Encoder and Discriminator!
-        Spectral Normalization 和Batch Normalization有什么关系?
+        Spectral Normalization 和Batch Normalization有冲突，故去掉Batch_Normalization!
         Args:
             name:
         Returns:
             features:
         """
         height = self._image_size
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
-            net = net_input
+        net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
+        net = net_input
 
-            num_layers = int(math.log(height, 2))-3
-            current_depth = self._depth
-            # 3->self._depth
-            net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format('init'), use_bias=False)(net)
-            net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format('init'))(net)
-            # 还是加一些额外层
-            for i in range(EXTRA_LAYERS_NUM):
-                net = SN_Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='extra_batchnorm_{}'.format(i))(net)
-                net = KL.LeakyReLU(0.2, name='extra_leakyrelu_{}'.format(i))(net)
-            ##
-            for i in range(num_layers//2):
-                current_depth = current_depth*2
-                net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format(i+1), use_bias=False)(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='batchnorm_{}'.format(i+1))(net)
+        num_layers = int(math.log(height, 2))-3
+        current_depth = self._depth
+        # 3->self._depth
+        net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format('init'), use_bias=False)(net)
+        net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format('init'))(net)
+        # 还是加一些额外层
+        for i in range(EXTRA_LAYERS_NUM):
+            net = SN_Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
+            net = KL.LeakyReLU(0.2, name='extra_leakyrelu_{}'.format(i))(net)
+        ##
+        for i in range(num_layers//2):
+            current_depth = current_depth*2
+            net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format(i+1), use_bias=False)(net)
+            net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
+        # 中途加入一个Attention层!
+        net = SN_Attention(current_depth, name='sn_attention')(net)
+        # 中途加入一个Attention层!
+        for i in range(num_layers//2, num_layers):
+            current_depth = current_depth * 2
+            net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format(i+1), use_bias=False)(net)
+            if (i == num_layers - 1):
+                net = KL.LeakyReLU(0.2, name='features')(net)
+            else:
                 net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
-            # 中途加入一个Attention层!
-            net = SN_Attention(current_depth, name='sn_attention')(net)
-            # 中途加入一个Attention层!
-            for i in range(num_layers//2, num_layers):
-                current_depth = current_depth * 2
-                net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format(i+1), use_bias=False)(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='batchnorm_{}'.format(i+1))(net)
-                if (i == num_layers - 1):
-                    net = KL.LeakyReLU(0.2, name='features')(net)
-                else:
-                    net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
-            #  令 isize = int(math.log(height, 2))
-            # 此时: BNx4x4x(depth*2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
+        #  令 isize = int(math.log(height, 2))
+        # 此时: BNx4x4x(depth*2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
+        model = KM.Model(inputs=net_input, outputs=net, name=name)
         # model.summary()
         return model
 
@@ -585,21 +571,20 @@ class GANBuilder(object):
         # 这个要严格和F的输出对上
         #  令 isize = int(math.log(height, 2))
         # 此时: BNx4x4x(2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(4, 4, self._depth*2**(isize-3)), name='input')
-            net = net_input
-            net = SN_Conv2D(1, (4, 4), strides=1, padding='VALID', use_bias=False, name='raw')(net)
-            # 此时：BNx1x1x1
-            net = KL.Reshape((1,), name='r_raw')(net)
-            # 事实上，此处我总是有些犯糊涂，最后一层是没必要sigmoid激活的。
-            # 即使在DCGAN的情况下，我们用的bce，他自己就加了sigmoid！！！
-            # 此处没删，以志之。
-            # net = KL.Activation('sigmoid',name='logits')(net)
-            # else : net = KL.Activation('tanh',name='critics')(net)
-            # 此时: BNx1
-            # end_points['logits'] = net
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
-            # model.summary()
+        net_input = KL.Input(shape=(4, 4, self._depth*2**(isize-3)), name='input')
+        net = net_input
+        net = SN_Conv2D(1, (4, 4), strides=1, padding='VALID', use_bias=False, name='raw')(net)
+        # 此时：BNx1x1x1
+        net = KL.Reshape((1,), name='r_raw')(net)
+        # 事实上，此处我总是有些犯糊涂，最后一层是没必要sigmoid激活的。
+        # 即使在DCGAN的情况下，我们用的bce，他自己就加了sigmoid！！！
+        # 此处没删，以志之。
+        # net = KL.Activation('sigmoid',name='logits')(net)
+        # else : net = KL.Activation('tanh',name='critics')(net)
+        # 此时: BNx1
+        # end_points['logits'] = net
+        model = KM.Model(inputs=net_input, outputs=net, name=name)
+        # model.summary()
         return model
 
     def Z(self, name='Z'):
@@ -607,76 +592,35 @@ class GANBuilder(object):
         isize = int(math.log(height, 2))
         #  令 isize = int(math.log(height, 2))
         # 此时: BNx4x4x(depth*2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(4, 4, self._depth*2**(isize-3)), name='input')
-            net = net_input
+        net_input = KL.Input(shape=(4, 4, self._depth*2**(isize-3)), name='input')
+        net = net_input
+        # 令 nz = self._z_dim
+        z_mean = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
+        z_mean = KL.Reshape((self._z_dim,), name='z_mean')(z_mean)                                # 此时：BNxnz
+        z_log_var = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
+        z_log_var = KL.Reshape((self._z_dim,), name='z_log_var')(z_log_var)                                            # 此时：BNxnz
+        print(z_mean.shape)
+        epsilon = KB.random_normal(shape=KB.shape(z_mean))                                                                 # 此时：BNxnz
+        vae_z = z_mean + tf.exp(0.5 * z_log_var) * epsilon
+        # end_points['latent'] = net
+        model = KM.Model(inputs=net_input, outputs=vae_z, name=name)
 
-            net = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False, name='conv2d_latent_raw')(net)
-            # 令 nz = self._z_dim
-            # 此时：BNx1x1xnz
-            net = KL.Reshape((self._z_dim,), name='latent')(net)
-            # 此时：BNxnz
-            # end_points['latent'] = net
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
-
-            # model.summary()
+        # model.summary()
         return model
 
-    def SN_Z(self, name='SN_Z'):
-        height = self._image_size
-        isize = int(math.log(height, 2))
-        #  令 isize = int(math.log(height, 2))
-        # 此时: BNx4x4x(depth*2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(4, 4, self._depth*2**(isize-3)), name='input')
-            net = net_input
+    def Encoder(self, name="Encoder"):  # F->Z
+        f_net = self.F(name="F")
+        z_net = self.Z(name="Z")
 
-            net = SN_Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False, name='conv2d_latent_raw')(net)
-            # 令 nz = self._z_dim
-            # 此时：BNx1x1xnz
-            net = KL.Reshape((self._z_dim,), name='latent')(net)
-            # 此时：BNxnz
-            # end_points['latent'] = net
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
-
-            # model.summary()
+        net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
+        net = net_input
+        net = f_net(net)
+        net = z_net(net)
+        model = KM.Model(inputs=net_input, outputs=net, name=name)
+        model.summary()
         return model
 
-    def Encoder(self, name="Encoder", format=None):  # F->Z
-        with tf.variable_scope(name):
-            f_net = self.F(name="F")
-            z_net = self.Z(name="Z")
-
-            net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
-            net = net_input
-            net = f_net(net)
-            net = z_net(net)
-            if format == 'Tanh':
-                net = KL.Activation('tanh', name='tanh_latent')(net)
-            elif format == 'Norm':
-                net = L2_Normalize()(net)
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
-            # model.summary()
-        return model
-
-    def SN_Encoder(self, name="SN_Encoder", format=None, with_BN=True):  # F->Z
-        with tf.variable_scope(name):
-            f_net = self.SN_F(name="SN_F", with_BN=with_BN)
-            z_net = self.SN_Z(name="SN_Z")
-
-            net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
-            net = net_input
-            net = f_net(net)
-            net = z_net(net)
-            if format == 'Tanh':
-                net = KL.Activation('tanh', name='tanh_latent')(net)
-            elif format == 'Norm':
-                net = L2_Normalize()(net)
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
-            # model.summary()
-        return model
-
-    def Decoder(self, name="Decoder", with_BN=True):
+    def Decoder(self, name="Decoder"):
         """源自 Generator network for DCGAN.
         Construct generator network from inputs to the final endpoint.
         Args:
@@ -684,214 +628,81 @@ class GANBuilder(object):
         height = self._image_size
         num_layers = int(math.log(height, 2))-3
         current_depth = self._depth * 2**num_layers
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(self._z_dim,), name='input')
-            # num_layers = int(math.log(self._image_size, 2)) - 1
-            net = KL.Reshape((1, 1, self._z_dim), name='reshape_input')(net_input)
-            # input is Z, going into a convolution
-            current_depth = self._depth * 2**num_layers
-            net = KL.Conv2DTranspose(current_depth, (4, 4), strides=1, padding='valid', use_bias=False, name='conv2d_{}_{}'.format(self._z_dim, current_depth))(net)
-            if with_BN:
-                net = KL.BatchNormalization(name='batchnorm_{}'.format(current_depth))(net)
-            net = KL.ReLU(name='relu_{}'.format(current_depth))(net)
-
-            for i in range(num_layers//2):
-                current_depth = current_depth // 2
-                net = KL.Conv2DTranspose(current_depth, (4, 4), strides=2, padding='same', use_bias=False,
-                                         name='conv2dtrans_{0}_{1}'.format(current_depth*2, current_depth))(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='batchnorm_{}'.format(i))(net)
-                net = KL.ReLU(name='relu_{}'.format(i))(net)
-
-            # 中途加入一个Attention层!
-            net = Attention(current_depth, name='attention')(net)
-            # 中途加入一个Attention层!
-
-            for i in range(num_layers//2, num_layers):
-                current_depth = current_depth // 2
-                net = KL.Conv2DTranspose(current_depth, (4, 4), strides=2, padding='same', use_bias=False,
-                                         name='conv2dtrans_{0}_{1}'.format(current_depth*2, current_depth))(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='batchnorm_{}'.format(i))(net)
-                net = KL.ReLU(name='relu_{}'.format(i))(net)
-
-            # 还是加一些额外层
-            for i in range(EXTRA_LAYERS_NUM):
-                net = KL.Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='extra_batchnorm_{}'.format(i))(net)
-                net = KL.ReLU(name='extra_relu_{}'.format(i))(net)
-
-            net = KL.Conv2DTranspose(self._num_outputs, (4, 4), strides=2, padding='same', use_bias=False,
-                                     name='conv2dtrans_{0}_{1}'.format(current_depth, current_depth//2))(net)
-            net = KL.Activation('tanh', name='tanh_output')(net)
-            # ----------------------
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
-
-            # model.summary()
-        return model
-
-    def SN_Decoder(self, name="SN_Decoder", with_BN=True):
-        """源自 Generator network for DCGAN.
-        Construct generator network from inputs to the final endpoint.
-        Args:
-            name: the name of the decoder neteork
-            with_BN: whether the BN is used!
-        """
-        height = self._image_size
-        num_layers = int(math.log(height, 2))-3
+        net_input = KL.Input(shape=(self._z_dim,), name='input')
+        # num_layers = int(math.log(self._image_size, 2)) - 1
+        net = KL.Reshape((1, 1, self._z_dim), name='reshape_input')(net_input)
+        # input is Z, going into a convolution
         current_depth = self._depth * 2**num_layers
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(self._z_dim,), name='input')
-            # num_layers = int(math.log(self._image_size, 2)) - 1
-            net = KL.Reshape((1, 1, self._z_dim), name='reshape_input')(net_input)
-            # input is Z, going into a convolution
-            current_depth = self._depth * 2**num_layers
-            net = SN_Conv2DTranspose(current_depth, (4, 4), strides=1, padding='valid', use_bias=False, name='conv2d_{}_{}'.format(self._z_dim, current_depth))(net)
-            if with_BN:
-                net = KL.BatchNormalization(name='batchnorm_{}'.format(current_depth))(net)
-            net = KL.ReLU(name='relu_{}'.format(current_depth))(net)
+        net = KL.Conv2DTranspose(current_depth, (4, 4), strides=1, padding='valid', use_bias=False, name='conv2d_{}_{}'.format(self._z_dim, current_depth))(net)
+        net = KL.BatchNormalization(name='batchnorm_{}'.format(current_depth))(net)
+        net = KL.ReLU(name='relu_{}'.format(current_depth))(net)
 
-            for i in range(num_layers//2):
-                current_depth = current_depth // 2
-                net = SN_Conv2DTranspose(current_depth, (4, 4), strides=2, padding='same', use_bias=False, name='conv2dtrans_{0}_{1}'.format(current_depth*2, current_depth))(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='batchnorm_{}'.format(i))(net)
-                net = KL.ReLU(name='relu_{}'.format(i))(net)
+        for i in range(num_layers//2):
+            current_depth = current_depth // 2
+            net = KL.Conv2DTranspose(current_depth, (4, 4), strides=2, padding='same', use_bias=False,
+                                     name='conv2dtrans_{0}_{1}'.format(current_depth*2, current_depth))(net)
+            net = KL.BatchNormalization(name='batchnorm_{}'.format(i))(net)
+            net = KL.ReLU(name='relu_{}'.format(i))(net)
 
-            # 中途加入一个Attention层!
-            net = SN_Attention(current_depth, name='attention')(net)
-            # 中途加入一个Attention层!
+        # 中途加入一个Attention层!
+        net = Attention(current_depth, name='attention')(net)
+        # 中途加入一个Attention层!
 
-            for i in range(num_layers//2, num_layers):
-                current_depth = current_depth // 2
-                net = SN_Conv2DTranspose(current_depth, (4, 4), strides=2, padding='same', use_bias=False,
-                                         name='conv2dtrans_{0}_{1}'.format(current_depth*2, current_depth))(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='batchnorm_{}'.format(i))(net)
-                net = KL.ReLU(name='relu_{}'.format(i))(net)
+        for i in range(num_layers//2, num_layers):
+            current_depth = current_depth // 2
+            net = KL.Conv2DTranspose(current_depth, (4, 4), strides=2, padding='same', use_bias=False,
+                                     name='conv2dtrans_{0}_{1}'.format(current_depth*2, current_depth))(net)
+            net = KL.BatchNormalization(name='batchnorm_{}'.format(i))(net)
+            net = KL.ReLU(name='relu_{}'.format(i))(net)
 
-            # 还是加一些额外层
-            for i in range(EXTRA_LAYERS_NUM):
-                net = SN_Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
-                if with_BN:
-                    net = KL.BatchNormalization(name='extra_batchnorm_{}'.format(i))(net)
-                net = KL.ReLU(0.2, name='extra_relu_{}'.format(i))(net)
+        # 还是加一些额外层
+        for i in range(EXTRA_LAYERS_NUM):
+            net = KL.Conv2D(current_depth, (3, 3), strides=1, padding='same', name='extra_conv2d_{}'.format(i), use_bias=False)(net)
+            net = KL.BatchNormalization(name='extra_batchnorm_{}'.format(i))(net)
+            net = KL.ReLU(name='extra_relu_{}'.format(i))(net)
 
-            net = SN_Conv2DTranspose(self._num_outputs, (4, 4), strides=2, padding='same', use_bias=False,
-                                     name='conv2dtrans_{0}_{1}'.format(current_depth, current_depth//2))(net)
-            net = KL.Activation('tanh', name='tanh_output')(net)
-            # ----------------------
-            model = KM.Model(inputs=net_input, outputs=net, name=name)
+        net = KL.Conv2DTranspose(self._num_outputs, (4, 4), strides=2, padding='same', use_bias=False,
+                                 name='conv2dtrans_{0}_{1}'.format(current_depth, current_depth//2))(net)
+        net = KL.Activation('tanh', name='tanh_output')(net)
+        # ----------------------
+        model = KM.Model(inputs=net_input, outputs=net, name=name)
 
-            # model.summary()
+        # model.summary()
         return model
 
-    def SN_Critic(self, name='Critic', with_BN=False):
+    def SN_Critic(self, name='Critic'):
         """
         按SNGAN的原始论文的介绍，Discriminator里Batch Normalization和Spectral Normalization似乎不能共存!
         故with_BN缺省值为False.
         """
-        with tf.variable_scope(name):
-            x = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
-            f_model = self.SN_F(name='F', with_BN=with_BN)
-            feat = f_model(x)
-            c_model = self.SN_C(name='C')
-            critics = c_model(feat)
-            model = KM.Model(inputs=x, outputs=[feat, critics], name=name)
+        x = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
+        f_model = self.SN_F(name='F')
+        feat = f_model(x)
+        c_model = self.SN_C(name='C')
+        critics = c_model(feat)
+        model = KM.Model(inputs=x, outputs=[feat, critics], name=name)
         # model.summary()
         return model
-
-    """
-    def SN_CN(self,name='SN_C'):
-        height =  self._image_size
-        isize  = int(math.log(height, 2))
-        #这个要严格和F的输出对上
-        #  令 isize = int(math.log(height, 2))
-        # 此时: BNx4x4x(2**( isize-3))  #注意，这和标准的DCGAN还是有些区别的！
-        with tf.variable_scope(name):
-            net_input = KL.Input(shape=(4,4,self._depth*2**(isize-3)),name='input')
-            net=net_input
-            #
-            net = KL.Conv2D(1024,(4,4),strides=1,padding='VALID',use_bias=False,name='cn_sn_conv2d_0')(net)
-            net = KL.Reshape((1024,),name='cn_sn_flatten')(net)
-            #
-            net = KL.Dense(1024,name='cn_sn_dense_1')(net)
-            net = KL.BatchNormalization(name='cn_sn_bn_1')(net)
-            net = KL.LeakyReLU(0.2,name='cn_sn_lrelu_1')(net)
-            #
-            net = KL.Dense(1024,name='cn_sn_dense_2')(net)
-            net = KL.BatchNormalization(name='cn_sn_bn_2')(net)
-            net = KL.LeakyReLU(0.2,name='cn_sn_lrelu_2')(net)
-            #
-            net = KL.Dense(self._z_dim,name='cn_sn_dense_z')(net)
-            #
-            model=KM.Model(inputs=net_input,outputs=net,name=name)
-            #model.summary()
-        return model
-    """
 
     def _NetG(self, name='NetG'):  # NetG 指的是 Generator。F->Z->Dec
         """
         最终NetG里还是不用Spectral Normalization!
         """
-        with tf.variable_scope(name):
-            # netg
-            x = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
-            # e
-            netg_e_model = self.Encoder(name='E', format=None)
-            z = netg_e_model(x)
-            # g
-            netg_g_model = self.Decoder(name='G')
-            x_fake = netg_g_model(z)
-            # nete
-            # netg_nete_model = self.Encoder(name='NetE',format=None)
-            # netg_nete_model = netg_e_model #纯粹对应论文中的结构 ，论文中netg_nete_model是同类的另外一个Encoder
-            # z_fake=netg_nete_model(x_fake)
+        # netg
+        x = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
+        # e
+        netg_e_model = self.Encoder(name='E')
+        z = netg_e_model(x)
+        # g
+        netg_g_model = self.Decoder(name='G')
+        x_fake = netg_g_model(z)
+        # nete
+        # netg_nete_model = self.Encoder(name='NetE',format=None)
+        # netg_nete_model = netg_e_model #纯粹对应论文中的结构 ，论文中netg_nete_model是同类的另外一个Encoder
+        # z_fake=netg_nete_model(x_fake)
 
-            netg_model = KM.Model(inputs=x, outputs=[z, x_fake], name=name)
+        netg_model = KM.Model(inputs=x, outputs=[z, x_fake], name=name)
         return netg_model, netg_e_model, netg_g_model
 
     def _NetD(self, name='NetD'):  # NetD 指的是 Discriminator。
         return self.SN_Critic(name=name)
-
-
-class G(KL.Activation):
-    def __init__(self, activation, **kwargs):
-        super(G, self).__init__(activation, **kwargs)
-        self.__name__ = 'oc_nn_g'
-        pass
-
-
-class OC_NN(object):  # 实质上是个简单的两层MLP
-    def __init__(self, input_units, hidden_units, classes):
-        self.input_units = int(input_units)
-        self.hidden_units = int(hidden_units)  # 隐含单元的个数
-        self.output_units = int(classes)  # 输出单元的个数
-        pass
-
-    def _OC_NN(self, name='OC_NN'):  # 输入为 Z
-        # 可以采用自定义的激活函数
-        # 将g作为激活函数
-        def oc_nn_g(x):
-            return (1 / np.sqrt(self.hidden_units)) * KB.cos(x / 0.02)
-        KU.get_custom_objects().update({'oc_nn_g': G(oc_nn_g)})
-
-        with tf.variable_scope(name):
-            x = KL.Input(shape=(self.input_units,), name='input')
-            net = x
-            net = KL.Dense(self.hidden_units,
-                           kernel_initializer='glorot_normal',
-                           kernel_regularizer=KR.l2(0.5),   # 没有按原作者的方法，将正则项直接写到loss里，而采用Keras的正则化方式。
-                           # use_bias=False,
-                           activation='oc_nn_g',  # 'relu'
-                           name='gVx')(net)                   # kernel为V,激活函数为g
-            net = KL.Dense(self.output_units,
-                           kernel_initializer='glorot_uniform',
-                           kernel_regularizer=KR.l2(0.5),  # 理由同上
-                           # use_bias=False,
-                           activation='linear',
-                           name='w_gVx_inner_product')(net)  # kernel为w,所以输出为 <w, gVx>
-            w_gVx_inner_product = net
-            oc_nn_model = KM.Model(inputs=x, outputs=w_gVx_inner_product, name=name)
-        return oc_nn_model

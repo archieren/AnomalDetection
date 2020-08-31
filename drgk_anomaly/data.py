@@ -250,19 +250,19 @@ def parser(record):
         record:tfrecord数据中的一个记录
     '''
     # Define here the features you would like to parse
-    features = {'image/height': tf.FixedLenFeature((), tf.int64),
-                'image/width': tf.FixedLenFeature((), tf.int64),
-                'image/colorspace': tf.FixedLenFeature((), tf.string),
-                'image/channels': tf.FixedLenFeature((), tf.int64),
+    features = {'image/height': tf.io.FixedLenFeature((), tf.int64),
+                'image/width': tf.io.FixedLenFeature((), tf.int64),
+                'image/colorspace': tf.io.FixedLenFeature((), tf.string),
+                'image/channels': tf.io.FixedLenFeature((), tf.int64),
                 # 'image/class/label': _int64_feature(label),
                 # 'image/class/text': _bytes_feature(text),
-                'image/format': tf.FixedLenFeature((), tf.string),
-                'image/filename': tf.FixedLenFeature((), tf.string),
-                'image/encoded': tf.FixedLenFeature((), tf.string)
+                'image/format': tf.io.FixedLenFeature((), tf.string),
+                'image/filename': tf.io.FixedLenFeature((), tf.string),
+                'image/encoded': tf.io.FixedLenFeature((), tf.string)
                 }
 
     # Parse example
-    example = tf.parse_single_example(record, features)
+    example = tf.io.parse_single_example(record, features)
 
     # Decode image
     # 解码后的图象归范到-1.0 ~ 1.0间

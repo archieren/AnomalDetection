@@ -19,6 +19,9 @@ from drgk_anomaly import model_keras
 KM = tf.keras.models
 KB = tf.keras.backend
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'  # or any {'0', '1', '2'}
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # tensorflow < 2.3 时,还必须设置此项,否者基本的卷积都无法运行，奇怪的事.
+
 
 # tf.enable_eager_execution()
 '''resize the images in batches'''
@@ -36,7 +39,7 @@ class Options(object):
         # self.image_size = 128        #128    64       32
         # self.z_size     = 256        #256    128      64
         # self.batch_size = 32        #         128
-        self.image_size, self.z_size, self.batch_size = 8, 32, 1024  # (128,256,16) (64,128,196)(32,64,1024) (16,64,1024)(8,32,1024)
+        self.image_size, self.z_size, self.batch_size = 64, 128, 196  # (128,256,16) (64,128,196)(32,64,1024) (16,64,1024)(8,32,1024)
         self.lr = 1e-4
         self.iteration = 2
         self.ckpt_dir = "ckpt"
@@ -118,7 +121,7 @@ def restore_model(model, checkpoint_dir):
 
 
 def train_Alocc():
-    init_keras_session()
+    # init_keras_session()
     opts = get_config(is_train=True)
     dataset_name = opts.dataset_name
     root = os.path.join(os.getcwd(), 'work', 'ganomaly', dataset_name)
@@ -208,10 +211,9 @@ def test_Alocc_Model():
 def main(_):
     # build_train_data()
     # train_Alocc()
-    # train_oc_nn()
-    test_Alocc_Model()
+    # test_Alocc_Model()
     return
 
 
 if __name__ == '__main__':
-    tf.app.run()
+    train_Alocc()
