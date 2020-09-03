@@ -36,10 +36,7 @@ def batch_resize(imgs, size):
 
 class Options(object):
     def __init__(self):
-        # self.image_size = 128        #128    64       32
-        # self.z_size     = 256        #256    128      64
-        # self.batch_size = 32        #         128
-        self.image_size, self.z_size, self.batch_size = 64, 128, 196  # (128,256,16) (64,128,196)(32,64,1024) (16,64,1024)(8,32,1024)
+        self.image_size, self.z_size, self.batch_size = 64, 128, 128  # (128,256,16) (64,128,196)(32,64,1024)
         self.lr = 1e-4
         self.iteration = 2
         self.ckpt_dir = "ckpt"
@@ -146,7 +143,7 @@ def train_Alocc():
     dataset_filepath = os.path.join(root, 'normal_tf_records_{}'.format(opts.image_size), '{}.tfrecord'.format(opts.dataset_name))
     print(dataset_filepath)
     dataset = tf.data.TFRecordDataset(dataset_filepath)
-    dataset = dataset.map(DS.parser).shuffle(buffer_size=200000)
+    dataset = dataset.map(DS.parser).shuffle(buffer_size=20000)
     # dataset = dataset.repeat(opts.iteration)
     dataset = dataset.batch(opts.batch_size)
 

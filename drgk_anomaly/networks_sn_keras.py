@@ -587,7 +587,7 @@ class GANBuilder(object):
         # model.summary()
         return model
 
-    def Z(self, name='Z'):
+    def Z(self, name='Z', is_vae=False):
         height = self._image_size
         isize = int(math.log(height, 2))
         #  令 isize = int(math.log(height, 2))
@@ -595,16 +595,18 @@ class GANBuilder(object):
         net_input = KL.Input(shape=(4, 4, self._depth*2**(isize-3)), name='input')
         net = net_input
         # 令 nz = self._z_dim
-        z_mean = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
-        z_mean = KL.Reshape((self._z_dim,), name='z_mean')(z_mean)                                # 此时：BNxnz
-        z_log_var = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
-        z_log_var = KL.Reshape((self._z_dim,), name='z_log_var')(z_log_var)                                            # 此时：BNxnz
-        print(z_mean.shape)
-        epsilon = KB.random_normal(shape=KB.shape(z_mean))                                                                 # 此时：BNxnz
-        vae_z = z_mean + tf.exp(0.5 * z_log_var) * epsilon
-        # end_points['latent'] = net
-        model = KM.Model(inputs=net_input, outputs=vae_z, name=name)
-
+        if is_vae:
+            z_mean = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
+            z_mean = KL.Reshape((self._z_dim,), name='z_mean')(z_mean)                                # 此时：BNxnz
+            z_log_var = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
+            z_log_var = KL.Reshape((self._z_dim,), name='z_log_var')(z_log_var)                                            # 此时：BNxnz
+            epsilon = KB.random_normal(shape=KB.shape(z_mean))                                                                 # 此时：BNxnz
+            vae_z = z_mean + tf.exp(0.5 * z_log_var) * epsilon
+            model = KM.Model(inputs=net_input, outputs=vae_z, name=name)
+        else:
+            z = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)
+            z = KL.Reshape((self._z_dim,))(z)
+            model = KM.Model(inputs=net_input, outputs=z, name=name)
         # model.summary()
         return model
 

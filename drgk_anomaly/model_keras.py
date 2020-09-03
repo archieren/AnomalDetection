@@ -46,8 +46,6 @@ class Alocc_Model(object):
         # 定义输入
         # self.x = KL.Input(shape=(batch_size,image_size,image_size,num_outputs),name='x')
         #
-        if z_dim is not None:
-            z_dim = (image_size / 2)**2
 
         self._depth = depth
         self._z_dim = z_dim
