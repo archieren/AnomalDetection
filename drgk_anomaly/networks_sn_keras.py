@@ -602,7 +602,9 @@ class GANBuilder(object):
             z_log_var = KL.Reshape((self._z_dim,), name='z_log_var')(z_log_var)                                            # 此时：BNxnz
             epsilon = KB.random_normal(shape=KB.shape(z_mean))                                                                 # 此时：BNxnz
             vae_z = z_mean + tf.exp(0.5 * z_log_var) * epsilon
+            kl_loss = -0.5 * tf.reduce_mean(z_log_var - tf.square(z_mean) - tf.exp(z_log_var) + 1)
             model = KM.Model(inputs=net_input, outputs=vae_z, name=name)
+            model.add_loss(kl_loss)
         else:
             z = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)
             z = KL.Reshape((self._z_dim,))(z)
@@ -612,7 +614,7 @@ class GANBuilder(object):
 
     def Encoder(self, name="Encoder"):  # F->Z
         f_net = self.F(name="F")
-        z_net = self.Z(name="Z")
+        z_net = self.Z(name="Z", is_vae=True)
 
         net_input = KL.Input(shape=(self._image_size, self._image_size, self._num_outputs), name='input')
         net = net_input

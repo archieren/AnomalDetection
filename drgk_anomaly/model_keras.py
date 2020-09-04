@@ -114,7 +114,7 @@ class Alocc_Model(object):
             _, x_noise_fake_critics = self.netD(x_noise_fake, training=False)
             self.L_adv = gen_loss_fn(x_noise_fake_critics)
             self.L_con = l1_loss(y_true=x, y_pred=x_fake)
-            self.netG_loss = 1*self.L_adv+50*self.L_con
+            self.netG_loss = 1*self.L_adv+50*self.L_con+sum(self.netG.losses)
             grad_of_netG = netG_tape.gradient(self.netG_loss, self.netG.trainable_variables)
             self.optimizer_netG.apply_gradients(zip(grad_of_netG, self.netG.trainable_variables))
         pass
