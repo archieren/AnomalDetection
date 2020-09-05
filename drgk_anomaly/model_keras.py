@@ -91,29 +91,22 @@ class Alocc_Model(object):
     def train_step(self, x):
         dis_loss_fn, gen_loss_fn = ML.get_gan_losses_fn()
         with tf.GradientTape() as netG_tape, tf.GradientTape() as netD_tape:
-            # 让x_noise的分布靠近x的分布.
             # 训练netD
             # x
-            x_noise = self.x_noise(x)
+            _, x_critics = self.netD(x, training=True)
 
             _, x_fake = self.netG(x, training=True)
-            _, x_noise_fake = self.netG(x_noise, training=True)
+            _, x_fake_critics = self.netD(x_fake, training=True)
 
-            _, x_critics = self.netD(x, training=True)
-            # _,x_fake_critics = self.netD(x_fake, training=True)
-            _, x_noise_fake_critics = self.netD(x_noise_fake, training=True)
-
-            # _,fake_loss=dis_loss_fn(x_critics,x_fake_critics)
-            real_loss, noise_fake_loss = dis_loss_fn(x_critics, x_noise_fake_critics)
-            self.L_dis = real_loss+noise_fake_loss
+            real_loss, fake_loss = dis_loss_fn(x_critics, x_fake_critics)
+            self.L_dis = real_loss+fake_loss
             self.netD_loss = self.L_dis
             grad_of_netD = netD_tape.gradient(self.netD_loss, self.netD.trainable_variables)
             self.optimizer_netD.apply_gradients(zip(grad_of_netD, self.netD.trainable_variables))
             # 训练netG
-            # _,x_fake_critics = self.netD(x_fake, training=False)
-            _, x_noise_fake_critics = self.netD(x_noise_fake, training=False)
-            self.L_adv = gen_loss_fn(x_noise_fake_critics)
-            self.L_con = l1_loss(y_true=x, y_pred=x_fake)
+            _, x_fake_critics = self.netD(x_fake, training=False)
+            self.L_adv = gen_loss_fn(x_fake_critics)
+            self.L_con = l2_loss(y_true=x, y_pred=x_fake)
             self.netG_loss = 1*self.L_adv+50*self.L_con+sum(self.netG.losses)
             grad_of_netG = netG_tape.gradient(self.netG_loss, self.netG.trainable_variables)
             self.optimizer_netG.apply_gradients(zip(grad_of_netG, self.netG.trainable_variables))

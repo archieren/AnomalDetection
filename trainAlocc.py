@@ -36,7 +36,7 @@ def batch_resize(imgs, size):
 
 class Options(object):
     def __init__(self):
-        self.image_size, self.z_size, self.batch_size = 64, 128, 128  # (128,256,16) (64,128,196)(32,64,1024)
+        self.image_size, self.z_size, self.batch_size = 64, 128, 256  # (128,256,16) (64,128,196)(32,64,1024)
         self.lr = 1e-4
         self.iteration = 2
         self.ckpt_dir = "ckpt"

@@ -36,6 +36,30 @@ def power_iteration(W, u, rounds=1):
     return W_sn, _u, _v
 
 
+class Scaler(KL.Layer):
+    """特殊的scale层
+    """
+
+    def __init__(self, tau=0.5, **kwargs):
+        super(Scaler, self).__init__(**kwargs)
+        self.tau = tau
+
+    def build(self, input_shape):
+        super(Scaler, self).build(input_shape)
+        self.scale = self.add_weight(name='scale', shape=(input_shape[-1],), initializer='zeros')
+
+    def call(self, inputs, mode='positive'):
+        if mode == 'positive':
+            scale = self.tau + (1 - self.tau) * KB.sigmoid(self.scale)
+        else:
+            scale = (1 - self.tau) * KB.sigmoid(-self.scale)
+        return inputs * KB.sqrt(scale)
+
+    def get_config(self):
+        config = {'tau': self.tau}
+        base_config = super(Scaler, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
 class L2_Normalize(KL.Layer):
     def __init_(self, **kwargs):
         super(L2_Normalize, self).__init__(**kwargs)
@@ -297,100 +321,6 @@ def hw_flatten(x):
     x_shape = tf.shape(x)
     return tf.reshape(x, [x_shape[0], -1, x_shape[-1]])  # return [BATCH, W*H, CHANNELS]
 
-
-class SN_Attention(KL.Layer):
-    def __init__(self, ch, spectral_normalization=True, **kwargs):
-        super(SN_Attention, self).__init__(**kwargs)
-        self.channels = ch
-        self.filters_f_g = self.channels // 8
-        self.filters_h = self.channels
-        self.spectral_normalization = spectral_normalization
-
-    def build(self, input_shape):
-        kernel_shape_f_g = (1, 1) + (self.channels, self.filters_f_g)
-        kernel_shape_h = (1, 1) + (self.channels, self.filters_h)
-
-        # Create a trainable weight variable for this layer:
-        self.gamma = self.add_weight(name='gamma', shape=[1], initializer='zeros', trainable=True)
-        self.kernel_f = self.add_weight(shape=kernel_shape_f_g, initializer='glorot_uniform', name='kernel_f')
-        self.kernel_g = self.add_weight(shape=kernel_shape_f_g, initializer='glorot_uniform', name='kernel_g')
-        self.kernel_h = self.add_weight(shape=kernel_shape_h, initializer='glorot_uniform', name='kernel_h')
-        self.bias_f = self.add_weight(shape=(self.filters_f_g,), initializer='zeros', name='bias_F')
-        self.bias_g = self.add_weight(shape=(self.filters_f_g,), initializer='zeros', name='bias_g')
-        self.bias_h = self.add_weight(shape=(self.filters_h,), initializer='zeros', name='bias_h')
-        ###
-        self.u_f = self.add_weight(shape=tuple([1, self.filters_f_g]), initializer='random_uniform', name="sn_estimate_u_f", trainable=False)  # [1, out_channels]
-        self.u_g = self.add_weight(shape=tuple([1, self.filters_f_g]), initializer='random_uniform', name="sn_estimate_u_g", trainable=False)  # [1, out_channels]
-        self.u_h = self.add_weight(shape=tuple([1, self.filters_h]), initializer='random_uniform', name="sn_estimate_u_h", trainable=False)  # [1, out_channels]
-
-        super(SN_Attention, self).build(input_shape)  # 这是必须的。
-        # Set input spec.
-        # self.input_spec = InputSpec(ndim=4,axes={3: input_shape[-1]})
-        self.built = True  # 这是必须的
-
-    def compute_spectral_normal(self, s_kernel, s_u, training):
-        # Spectrally Normalized Weight
-
-        if self.spectral_normalization:
-            W_shape = s_kernel.shape.as_list()
-            out_dim = W_shape[-1]
-            W_mat = KB.reshape(s_kernel, [out_dim, -1])  # [out_c, N]
-            sigma, u, _ = power_iteration(W_mat, s_u)
-
-            def true_fn():
-                s_u.assign(u)
-                pass
-
-            def false_fn():
-                pass
-
-            training_value = tf_utils.constant_value(training)
-            if training_value is not None:
-                tf_utils.smart_cond(training, true_fn, false_fn)
-            return s_kernel / sigma
-        else:
-            return s_kernel
-
-    def call(self, x, training=True):
-        def hw_flatten(x):
-            return KB.reshape(x, shape=[KB.shape(x)[0], KB.shape(x)[1]*KB.shape(x)[2], KB.shape(x)[-1]])
-
-        f = KB.conv2d(x,
-                      kernel=self.compute_spectral_normal(s_kernel=self.kernel_f, s_u=self.u_f, training=training),
-                      strides=(1, 1),
-                      padding='same')  # [bs, h, w, c']
-        f = KB.bias_add(f, self.bias_f)
-
-        g = KB.conv2d(x,
-                      kernel=self.compute_spectral_normal(s_kernel=self.kernel_g, s_u=self.u_g, training=training),
-                      strides=(1, 1),
-                      padding='same')  # [bs, h, w, c']
-        g = KB.bias_add(g, self.bias_g)
-
-        h = KB.conv2d(x,
-                      kernel=self.compute_spectral_normal(s_kernel=self.kernel_h, s_u=self.u_h, training=training),
-                      strides=(1, 1),
-                      padding='same')  # [bs, h, w, c]
-        h = KB.bias_add(h, self.bias_h)
-
-        # s = tf.matmul(hw_flatten(g), hw_flatten(f), transpose_b=True)  # # [bs, N, N]
-        g_ = hw_flatten(g)  # [bs,N,c']
-        f_ = hw_flatten(f)  # [bs,N,c']
-        f_t = KB.permute_dimensions(f_, pattern=(0, 2, 1))  # [bs,c',N]
-        s = KB.batch_dot(g_, f_t)  # [bs, N, N]
-        beta = KB.softmax(s)  # attention map
-
-        o = KB.batch_dot(beta, hw_flatten(h))  # [bs, N, C]
-
-        o = KB.reshape(o, shape=KB.shape(x))  # [bs, h, w, C]
-        x = self.gamma * o + x
-
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-
 class Attention(KL.Layer):
     def __init__(self, ch, **kwargs):
         super(Attention, self).__init__(**kwargs)
@@ -550,7 +480,7 @@ class GANBuilder(object):
             net = SN_Conv2D(current_depth, (4, 4), strides=2, padding='same', name='sn_conv2d_{}'.format(i+1), use_bias=False)(net)
             net = KL.LeakyReLU(0.2, name='leakyrelu_{}'.format(i+1))(net)
         # 中途加入一个Attention层!
-        net = SN_Attention(current_depth, name='sn_attention')(net)
+        net = Attention(current_depth, name='sn_attention')(net)
         # 中途加入一个Attention层!
         for i in range(num_layers//2, num_layers):
             current_depth = current_depth * 2
@@ -596,10 +526,17 @@ class GANBuilder(object):
         net = net_input
         # 令 nz = self._z_dim
         if is_vae:
+            scaler = Scaler()
             z_mean = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
-            z_mean = KL.Reshape((self._z_dim,), name='z_mean')(z_mean)                                # 此时：BNxnz
+            z_mean = KL.BatchNormalization(scale=False, center=False, epsilon=1e-8)(z_mean)  # 看文章“A Batch Normalized Inference Network Keeps the KL Vanishing Away”
+            z_mean = KL.Reshape((self._z_dim,))(z_mean)  # 此时：BNxnz
+            z_mean = scaler(z_mean, mode='positive')
+
             z_log_var = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
-            z_log_var = KL.Reshape((self._z_dim,), name='z_log_var')(z_log_var)                                            # 此时：BNxnz
+            z_log_var = KL.BatchNormalization(scale=False, center=False, epsilon=1e-8)(z_log_var)   # 看文章“A Batch Normalized Inference Network Keeps the KL Vanishing Away”
+            z_log_var = KL.Reshape((self._z_dim,))(z_log_var)  # 此时：BNxnz
+            z_log_var = scaler(z_log_var, mode='negative')
+
             epsilon = KB.random_normal(shape=KB.shape(z_mean))                                                                 # 此时：BNxnz
             vae_z = z_mean + tf.exp(0.5 * z_log_var) * epsilon
             kl_loss = -0.5 * tf.reduce_mean(z_log_var - tf.square(z_mean) - tf.exp(z_log_var) + 1)
@@ -621,7 +558,6 @@ class GANBuilder(object):
         net = f_net(net)
         net = z_net(net)
         model = KM.Model(inputs=net_input, outputs=net, name=name)
-        model.summary()
         return model
 
     def Decoder(self, name="Decoder"):
