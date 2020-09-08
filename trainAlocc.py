@@ -38,7 +38,7 @@ class Options(object):
     def __init__(self):
         self.image_size, self.z_size, self.batch_size = 64, 128, 256  # (128,256,16) (64,128,196)(32,64,1024)
         self.lr = 1e-4
-        self.iteration = 2
+        self.iteration = 1
         self.ckpt_dir = "ckpt"
         self.image_channel = 3
         self.depth = 64
@@ -49,7 +49,7 @@ class Options(object):
 def get_config(is_train):
     opts = Options()
     if is_train:
-        opts.iteration = 2
+        opts.iteration = 18
     else:
         opts.batch_size = 2
         opts.result_dir = "result"
@@ -143,7 +143,7 @@ def train_Alocc():
     dataset_filepath = os.path.join(root, 'normal_tf_records_{}'.format(opts.image_size), '{}.tfrecord'.format(opts.dataset_name))
     print(dataset_filepath)
     dataset = tf.data.TFRecordDataset(dataset_filepath)
-    dataset = dataset.map(DS.parser).shuffle(buffer_size=20000)
+    dataset = dataset.map(DS.parser).shuffle(buffer_size=80000)
     # dataset = dataset.repeat(opts.iteration)
     dataset = dataset.batch(opts.batch_size)
 
@@ -165,7 +165,7 @@ def train_Alocc():
 
 
 def test_Alocc_Model():
-    init_keras_session()
+    # init_keras_session()
     opts = get_config(is_train=True)
     dataset_name = opts.dataset_name
     root = os.path.join(os.getcwd(), 'work', 'ganomaly', dataset_name)
@@ -191,16 +191,13 @@ def test_Alocc_Model():
     plt.imshow(img.astype(np.uint8))
     # plt.show()
 
-    # cos_map = cos_dis(z,z_fake)
     score_map = scores
     score_map = tf.reshape(score_map, shape=[1, h, w])
 
     score_map_s = tf.cast(255*score_map[0], tf.uint8)
-    # print(score_map.shape)
-    # print(score_map_s)
+
     plt.subplot(2, 1, 2)
     plt.imshow(score_map_s, cmap='gray')
-    # plt.imshow((score_map*255).astype(np.uint8))
     plt.show()
     pass
 
@@ -214,3 +211,4 @@ def main(_):
 
 if __name__ == '__main__':
     train_Alocc()
+    # test_Alocc_Model()

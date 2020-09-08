@@ -80,12 +80,12 @@ class Alocc_Model(object):
         # tf.train.AdamOptimizer(learning_rate=self._lr, beta1=self._beta1, beta2=self._beta2)
         # KO.Adam(lr=self._lr, beta_1=self._beta1, beta_2=self._beta2)
 
-        self.L_adv = None
-        self.L_con = None
-        self.netG_loss = None
+        self.L_adv = 0.0
+        self.L_con = 0.0
+        self.netG_loss = 0.0
 
-        self.L_dis = None
-        self.netD_loss = None
+        self.L_dis = 0.0
+        self.netD_loss = 0.0
 
     # @tf.function
     def train_step(self, x):
@@ -93,21 +93,22 @@ class Alocc_Model(object):
         with tf.GradientTape() as netG_tape, tf.GradientTape() as netD_tape:
             # 训练netD
             # x
-            _, x_critics = self.netD(x, training=True)
+            # _, x_critics = self.netD(x, training=True)
 
             _, x_fake = self.netG(x, training=True)
-            _, x_fake_critics = self.netD(x_fake, training=True)
+            #_, x_fake_critics = self.netD(x_fake, training=True)
 
-            real_loss, fake_loss = dis_loss_fn(x_critics, x_fake_critics)
-            self.L_dis = real_loss+fake_loss
-            self.netD_loss = self.L_dis
-            grad_of_netD = netD_tape.gradient(self.netD_loss, self.netD.trainable_variables)
-            self.optimizer_netD.apply_gradients(zip(grad_of_netD, self.netD.trainable_variables))
+            # real_loss, fake_loss = dis_loss_fn(x_critics, x_fake_critics)
+            # self.L_dis = real_loss+fake_loss
+            # self.netD_loss = self.L_dis
+            # grad_of_netD = netD_tape.gradient(self.netD_loss, self.netD.trainable_variables)
+            # self.optimizer_netD.apply_gradients(zip(grad_of_netD, self.netD.trainable_variables))
+            
             # 训练netG
-            _, x_fake_critics = self.netD(x_fake, training=False)
-            self.L_adv = gen_loss_fn(x_fake_critics)
+            # _, x_fake_critics = self.netD(x_fake, training=False)
+            # self.L_adv = gen_loss_fn(x_fake_critics)
             self.L_con = l2_loss(y_true=x, y_pred=x_fake)
-            self.netG_loss = 1*self.L_adv+50*self.L_con+sum(self.netG.losses)
+            self.netG_loss = 1*self.L_con+1*sum(self.netG.losses)
             grad_of_netG = netG_tape.gradient(self.netG_loss, self.netG.trainable_variables)
             self.optimizer_netG.apply_gradients(zip(grad_of_netG, self.netG.trainable_variables))
         pass

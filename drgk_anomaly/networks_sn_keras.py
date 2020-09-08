@@ -533,7 +533,7 @@ class GANBuilder(object):
             z_mean = scaler(z_mean, mode='positive')
 
             z_log_var = KL.Conv2D(self._z_dim, (4, 4), strides=1, padding='VALID', use_bias=False)(net)  # 此时：BNx1x1xnz
-            z_log_var = KL.BatchNormalization(scale=False, center=False, epsilon=1e-8)(z_log_var)   # 看文章“A Batch Normalized Inference Network Keeps the KL Vanishing Away”
+            z_log_var = KL.BatchNormalization(scale=False, center=False, epsilon=1e-8)(z_log_var)   # 看苏某某的论述
             z_log_var = KL.Reshape((self._z_dim,))(z_log_var)  # 此时：BNxnz
             z_log_var = scaler(z_log_var, mode='negative')
 
