@@ -46,7 +46,8 @@ class Scaler(KL.Layer):
 
     def build(self, input_shape):
         super(Scaler, self).build(input_shape)
-        self.scale = self.add_weight(name='scale', shape=(input_shape[-1],), initializer='zeros')
+        self.scale = self.add_weight(name='scale', shape=(input_shape[-1],), initializer='zeros', trainable=True)
+        self.built = True
 
     def call(self, inputs, mode='positive'):
         if mode == 'positive':
