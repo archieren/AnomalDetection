@@ -228,7 +228,7 @@ def _find_image_files(data_dir):
     """
     logging.info('Determining list of input files and labels from %s.' % data_dir)
     pattern = os.path.join(data_dir, '*.jpg')
-    filenames = tf.gfile.Glob(pattern)
+    filenames = tf.io.gfile.Glob(pattern)
     return filenames
 
 
@@ -300,6 +300,23 @@ def _crop_to_patch(image, patch_size=64, patch_stride=32):
 def _blur(image):
     return cv2.GaussianBlur(image, (11, 11), 0)
 
+def resize_the_images_with_save(source_dir, output_dir, size=64):
+    if os.path.exists(output_dir):
+        clear_dir(output_dir)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    scene_images_path = os.path.join(source_dir, '*.jpg')
+    for _, scene_file in enumerate(tf.io.gfile.glob(scene_images_path)):
+        # print(scene_file)
+        # print(os.path.basename(scene_file))
+        scene_file_basename = os.path.splitext(os.path.basename(scene_file))[0]
+        print(scene_file_basename)
+        scene_image = cv2.imread(scene_file)
+        resized_image = cv2.resize(scene_image, (size, size), interpolation=cv2.INTER_LINEAR)
+        resized_image_file = os.path.join(output_dir, scene_file_basename+"_{}.jpg".format(size))
+        cv2.imwrite(resized_image_file, resized_image)
 
 def patch_the_image_with_save(source_dir, output_dir, size=64, bluring=False):  # 将某个目录下的jpeg文件，生成切片用于训练
 
@@ -310,7 +327,7 @@ def patch_the_image_with_save(source_dir, output_dir, size=64, bluring=False):  
         os.makedirs(output_dir)
 
     scene_images_path = os.path.join(source_dir, '*.jpg')
-    for _, scene_file in enumerate(tf.gfile.Glob(scene_images_path)):
+    for _, scene_file in enumerate(tf.io.gfile.glob(scene_images_path)):
         # print(scene_file)
         # print(os.path.basename(scene_file))
         scene_file_basename = os.path.splitext(os.path.basename(scene_file))[0]
@@ -318,7 +335,7 @@ def patch_the_image_with_save(source_dir, output_dir, size=64, bluring=False):  
         scene_image = cv2.imread(scene_file)
         if bluring:
             scene_image = _blur(scene_image)  # 注意！！！
-        patches, _, _ = _crop_to_patch(scene_image, patch_size=size, patch_stride=8)  # patch_stride = int(size/2)
+        patches, _, _ = _crop_to_patch(scene_image, patch_size=size, patch_stride=size)  # patch_stride = int(size/2)
         print(len(patches))
         for i in range(len(patches)):
             patch_file = os.path.join(output_dir, scene_file_basename+"_p_{}.jpg".format(i))
